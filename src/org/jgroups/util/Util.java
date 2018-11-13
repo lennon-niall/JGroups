@@ -269,6 +269,8 @@ public class Util {
     public static void waitUntilAllChannelsHaveSameView(long timeout, long interval, JChannel... channels) throws TimeoutException {
         if(interval >= timeout || timeout <= 0)
             throw new IllegalArgumentException("interval needs to be smaller than timeout or timeout needs to be > 0");
+        if(channels == null || channels.length == 0)
+            return;
         long target_time=System.currentTimeMillis() + timeout;
         while(System.currentTimeMillis() <= target_time) {
             boolean all_channels_have_correct_view=true;

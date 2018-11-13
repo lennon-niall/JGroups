@@ -5,10 +5,7 @@ import org.jgroups.logging.Log;
 import org.jgroups.util.BoundedList;
 import org.jgroups.util.Util;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.Iterator;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,17 +24,17 @@ import java.util.function.Consumer;
  * @since  4.0.5
  */
 public class ViewHandler<R> {
-    protected final Collection<R>           requests=new ConcurrentLinkedQueue<>();
-    protected final Lock                    lock=new ReentrantLock();
-    protected final AtomicInteger           count=new AtomicInteger();
-    protected final AtomicBoolean           suspended=new AtomicBoolean(false);
+    protected final Collection<R>         requests=new ConcurrentLinkedQueue<>();
+    protected final Lock                  lock=new ReentrantLock();
+    protected final AtomicInteger         count=new AtomicInteger(); // #threads adding to (and removing from) queue
+    protected final AtomicBoolean         suspended=new AtomicBoolean(false);
     @GuardedBy("lock")
-    protected boolean                       processing;
-    protected final Condition               processing_done=lock.newCondition();
-    protected final GMS                     gms;
-    protected final Consumer<Collection<R>> req_processor;
-    protected final BiPredicate<R,R>        req_matcher;
-    protected final BoundedList<String>     history=new BoundedList<>(20); // maintains a list of the last 20 requests
+    protected boolean                     processing;
+    protected final Condition             processing_done=lock.newCondition();
+    protected final GMS                   gms;
+    protected Consumer<Collection<R>>     req_processor;
+    protected BiPredicate<R,R>            req_matcher;
+    protected final BoundedList<String>   history=new BoundedList<>(20); // maintains a list of the last 20 requests
 
 
     /**
@@ -54,8 +51,12 @@ public class ViewHandler<R> {
         this.req_matcher=req_matcher != null? req_matcher : (a,b) -> true;
     }
 
-    public boolean suspended() {return suspended.get();}
-    public int     size()      {return requests.size();}
+    public boolean                 suspended()                             {return suspended.get();}
+    public int                     size()                                  {return requests.size();}
+    public ViewHandler<R>          reqProcessor(Consumer<Collection<R>> p) {req_processor=p; return this;}
+    public Consumer<Collection<R>> reqProcessor()                          {return req_processor;}
+    public ViewHandler<R>          reqMatcher(BiPredicate<R,R> m)          {req_matcher=m; return this;}
+    public BiPredicate<R,R>        reqMatcher()                            {return req_matcher;}
 
     public ViewHandler<R> add(R req) {
         if(_add(req))
@@ -127,6 +128,18 @@ public class ViewHandler<R> {
                 catch(InterruptedException e) {
                 }
             }
+        }
+        finally {
+            lock.unlock();
+        }
+    }
+
+    /** To be used by testing only! */
+    public <T extends ViewHandler<R>> T processing(boolean flag) {
+        lock.lock();
+        try {
+            setProcessing(flag);
+            return (T)this;
         }
         finally {
             lock.unlock();
@@ -227,6 +240,8 @@ public class ViewHandler<R> {
 
     /** We're guaranteed that only one thread will be called with this method at any time */
     protected void process(Collection<R> requests) {
+        System.out.printf("**** %s %s [%s]: processing requests: %s\n",
+                          gms.local_addr, gms.getImplementation(), Thread.currentThread(), requests);
         for(;;) {
             while(!requests.isEmpty()) {
                 removeAndProcess(requests); // remove matching requests and process them

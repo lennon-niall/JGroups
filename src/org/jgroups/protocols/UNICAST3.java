@@ -178,6 +178,11 @@ public class UNICAST3 extends Protocol implements AgeOutCache.Handler<Address> {
         return retval;
     }
 
+    public <T extends UNICAST3> T setXmitInterval(long interval) {
+        xmit_interval=interval;
+        return (T)this;
+    }
+
     @ManagedOperation
     public String printConnections() {
         StringBuilder sb=new StringBuilder();

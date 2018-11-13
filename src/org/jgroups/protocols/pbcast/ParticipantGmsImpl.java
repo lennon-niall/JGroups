@@ -6,7 +6,9 @@ import org.jgroups.View;
 import org.jgroups.ViewId;
 import org.jgroups.util.Digest;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 
 /**
@@ -35,23 +37,16 @@ public class ParticipantGmsImpl extends ServerGmsImpl {
     }
 
 
-    /**
-     * Loop: determine coord. If coord is me --> handleLeave().
-     * Else send handleLeave() to coord until success
-     */
     public void leave(Address mbr) {
-        Address coord=gms.determineCoordinator();
-        if(coord != null)
-            sendLeaveReqTo(coord);
-        gms.becomeClient();
+        if(sendLeaveReqToCoord(gms.determineCoordinator()))
+            gms.initState();
     }
 
 
     /** In case we get a different JOIN_RSP from a previous JOIN_REQ sent by us (as a client), we simply apply the
      * new view if it is greater than ours
-     *
-     * @param join_rsp
      */
+    @Override
     public void handleJoinResponse(JoinRsp join_rsp) {
         View v=join_rsp.getView();
         ViewId tmp_vid=v != null? v.getViewId() : null;
@@ -91,7 +86,13 @@ public class ParticipantGmsImpl extends ServerGmsImpl {
             return;
 
         if(wouldIBeCoordinator(leaving_mbrs)) {
+
+            String add=gms.getImpl() instanceof ParticipantGmsImpl? " (becoming coordinator)": "";
+            System.out.printf("**** %s (%s): handleMembershipChange(%s) %s\n",
+                              gms.getLocalAddress(), gms.getImplementation(), requests, add);
+
             log.debug("%s: members are %s, coord=%s: I'm the new coordinator", gms.local_addr, gms.members, gms.local_addr);
+            boolean leaving=gms.isLeaving();
             gms.becomeCoordinator();
             Collection<Request> leavingOrSuspectedMembers=new LinkedHashSet<>();
             leaving_mbrs.forEach(mbr -> leavingOrSuspectedMembers.add(new Request(Request.LEAVE, mbr)));
@@ -100,7 +101,18 @@ public class ParticipantGmsImpl extends ServerGmsImpl {
                 gms.ack_collector.suspect(mbr);
             });
             suspected_mbrs.clear();
+            if(leaving)
+                leavingOrSuspectedMembers.add(new Request(Request.COORD_LEAVE, gms.local_addr));
             gms.getViewHandler().add(leavingOrSuspectedMembers);
+
+            // If we're the coord leaving, ignore gms.leave_timeout: https://issues.jboss.org/browse/JGRP-1509
+            //long timeout=(long)(Math.max(gms.leave_timeout, gms.view_ack_collection_timeout) * 1.10);
+            //gms.getViewHandler().waitUntilComplete(timeout);
+            //long time=System.currentTimeMillis()-start;
+            //System.out.printf("**** %s (%s): waited for %d ms for leave(%s) to complete\n",
+              //                gms.getLocalAddress(), gms.getImplementation(), time, leavingOrSuspectedMembers);
+
+
         }
     }
 
@@ -113,7 +125,7 @@ public class ParticipantGmsImpl extends ServerGmsImpl {
      */
     public void handleViewChange(View new_view, Digest digest) {
         suspected_mbrs.clear();
-        if(leaving && !new_view.containsMember(gms.local_addr)) // received a view in which I'm not member: ignore
+        if(gms.isLeaving() && !new_view.containsMember(gms.local_addr)) // received a view in which I'm not member: ignore
             return;
         gms.installView(new_view, digest);
     }
