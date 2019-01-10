@@ -42,12 +42,8 @@ public class LeaveTest {
 
     protected void setup(int num) throws Exception {
         channels=new JChannel[num];
-        for(int i = 0; i < channels.length; i++) {
+        for(int i = 0; i < channels.length; i++)
             channels[i] = create(String.valueOf(i + 1)).connect(LeaveTest.class.getSimpleName());
-            System.out.printf("%d ", i+1);
-            Util.sleep(i < 1 ? 2000 : 100);
-        }
-        System.out.println("\n");
         Util.waitUntilAllChannelsHaveSameView(10000, 1000, channels);
     }
 
@@ -59,18 +55,11 @@ public class LeaveTest {
 
     /** A single member (coord) leaves */
     public void testLeaveOfSingletonCoord() throws Exception {
-        setup(NUM);
-        JChannel x=null;
-        destroy();
-        try {
-            x=create("X").connect("x-cluster");
-            assert x.getView().size() == 1;
-            Util.close(x);
-            assert x.getView() == null;
-        }
-        finally {
-            Util.close(x);
-        }
+        setup(1);
+        JChannel ch=channels[0];
+        assert ch.getView().size() == 1;
+        Util.close(ch);
+        assert ch.getView() == null;
     }
 
     /** The coord leaves */
@@ -92,7 +81,7 @@ public class LeaveTest {
     }
 
     /** The first N coords leave, one after the other */
-    @Test(invocationCount=10)
+    // @Test(invocationCount=10)
     public void testSequentialLeavesOfCoordinators() throws Exception {
         setup(NUM);
         Arrays.stream(channels, 0, channels.length/2).forEach(Util::close);
@@ -127,7 +116,7 @@ public class LeaveTest {
     }
 
     /** The coord and next-coord leave concurrently (coord leaves first), but these are the only members in the cluster */
-    @Test(invocationCount=10)
+    // @Test(invocationCount=10)
     public void testLeaveOfCoordAndNextWithOnly2Members() throws Exception {
         setup(2);
         testLeaveOfFirstNMembers(Comparator.comparingInt(GmsImpl.Request::getType).reversed(), 2);

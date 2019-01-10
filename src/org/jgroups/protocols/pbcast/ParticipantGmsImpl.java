@@ -86,11 +86,6 @@ public class ParticipantGmsImpl extends ServerGmsImpl {
             return;
 
         if(wouldIBeCoordinator(leaving_mbrs)) {
-
-            String add=gms.getImpl() instanceof ParticipantGmsImpl? " (becoming coordinator)": "";
-            System.out.printf("**** %s (%s): handleMembershipChange(%s) %s\n",
-                              gms.getLocalAddress(), gms.getImplementation(), requests, add);
-
             log.debug("%s: members are %s, coord=%s: I'm the new coordinator", gms.local_addr, gms.members, gms.local_addr);
             boolean leaving=gms.isLeaving();
             gms.becomeCoordinator();
@@ -104,15 +99,6 @@ public class ParticipantGmsImpl extends ServerGmsImpl {
             if(leaving)
                 leavingOrSuspectedMembers.add(new Request(Request.COORD_LEAVE, gms.local_addr));
             gms.getViewHandler().add(leavingOrSuspectedMembers);
-
-            // If we're the coord leaving, ignore gms.leave_timeout: https://issues.jboss.org/browse/JGRP-1509
-            //long timeout=(long)(Math.max(gms.leave_timeout, gms.view_ack_collection_timeout) * 1.10);
-            //gms.getViewHandler().waitUntilComplete(timeout);
-            //long time=System.currentTimeMillis()-start;
-            //System.out.printf("**** %s (%s): waited for %d ms for leave(%s) to complete\n",
-              //                gms.getLocalAddress(), gms.getImplementation(), time, leavingOrSuspectedMembers);
-
-
         }
     }
 

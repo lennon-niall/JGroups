@@ -905,7 +905,6 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
                 view_handler.add(new Request(Request.LEAVE, hdr.mbr));
                 break;
             case GmsHeader.LEAVE_RSP:
-                System.out.printf("**** %s (%s): GMS.up(): LEAVE-RSP from %s\n", local_addr, getImplementation(), msg.src());
                 impl.handleLeaveResponse(msg.getSrc());
                 break;
             case GmsHeader.VIEW:
@@ -1138,9 +1137,6 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
     /* ------------------------------- Private Methods --------------------------------- */
 
     protected void initState() {
-
-        if(local_addr != null && impl != null)
-            System.out.printf("==== %s (%s): changing state to Client\n", local_addr, getImplementation());
         becomeClient();
         view=null;
         first_view_sent=false;

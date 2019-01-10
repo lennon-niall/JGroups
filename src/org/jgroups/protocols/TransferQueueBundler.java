@@ -2,8 +2,6 @@ package org.jgroups.protocols;
 
 
 import org.jgroups.Message;
-import org.jgroups.conf.ClassConfigurator;
-import org.jgroups.protocols.pbcast.GMS;
 import org.jgroups.util.AverageMinMax;
 
 import java.util.ArrayList;
@@ -77,10 +75,6 @@ public class TransferQueueBundler extends BaseBundler implements Runnable {
     }
 
     public synchronized void stop() {
-
-        System.out.printf("**** %s: stopping the bundler (queue size: %d, size: %d)\n",
-                          transport.getLocalAddress(), queue.size(), size());
-
         running=false;
         Thread tmp=bundler_thread;
         bundler_thread=null;
@@ -98,12 +92,6 @@ public class TransferQueueBundler extends BaseBundler implements Runnable {
         return super.size() + removeQueueSize() + getBufferSize();
     }
 
-
-    protected static short gms_id=ClassConfigurator.getProtocolId(GMS.class);
-
-
-
-
     public void send(Message msg) throws Exception {
         if(running)
             queue.put(msg);
@@ -115,13 +103,6 @@ public class TransferQueueBundler extends BaseBundler implements Runnable {
             try {
                 if((msg=queue.take()) == null)
                     continue;
-
-
-                GMS.GmsHeader hdr=msg.getHeader(gms_id);
-                if(hdr != null && hdr.getType() == GMS.GmsHeader.LEAVE_RSP)
-                    System.out.printf("**** %s [bundler]: took LEAVE-RSP (to %s) from the queue (running=%b)\n",
-                                      transport.getLocalAddress(), msg.dest(), running);
-
                 addAndSendIfSizeExceeded(msg);
                 while(true) {
                     remove_queue.clear();
@@ -136,17 +117,10 @@ public class TransferQueueBundler extends BaseBundler implements Runnable {
                 if(count > 0) {
                     num_sends_because_no_msgs++;
                     fill_count.add(count);
-                    if(hdr != null && hdr.getType() == GMS.GmsHeader.LEAVE_RSP)
-                        System.out.printf("**** %s [bundler]: sending bundled messages including leave-rsp\n", transport.getLocalAddress());
                     _sendBundledMessages();
-                    if(hdr != null && hdr.getType() == GMS.GmsHeader.LEAVE_RSP)
-                        System.out.printf("**** %s [bundler]: sent bundled messages including leave-rsp\n", transport.getLocalAddress());
                 }
             }
             catch(Throwable t) {
-                System.out.printf("XXXX %s: thread %s got an exception: %s:\n", transport.getLocalAddress(), Thread.currentThread(), t);
-                // t.printStackTrace();
-
             }
         }
     }
@@ -155,13 +129,6 @@ public class TransferQueueBundler extends BaseBundler implements Runnable {
     protected void addAndSendIfSizeExceeded(Message msg) {
         long size=msg.size();
         if(count + size >= transport.getMaxBundleSize()) {
-
-            GMS.GmsHeader hdr=msg.getHeader(gms_id);
-            if(hdr != null && hdr.getType() == GMS.GmsHeader.LEAVE_RSP) {
-                System.out.printf("**** %s [bundler]: sending LEAVE-RSP (to %s) as size has been exceeded (running=%b)\n",
-                                  transport.getLocalAddress(), msg.dest(), running);
-            }
-
             num_sends_because_full_queue++;
             fill_count.add(count);
             _sendBundledMessages();
@@ -185,9 +152,6 @@ public class TransferQueueBundler extends BaseBundler implements Runnable {
         try {
             sendBundledMessages();
         }
-        catch(Throwable t) {
-            System.out.printf("**** %s: exception sending bundled messages: %s", transport.getLocalAddress(), t);
-        }
         finally {
             lock.unlock();
         }
@@ -197,9 +161,6 @@ public class TransferQueueBundler extends BaseBundler implements Runnable {
         lock.lock();
         try {
             addMessage(msg, size);
-        }
-        catch(Throwable t) {
-            t.printStackTrace();
         }
         finally {
             lock.unlock();

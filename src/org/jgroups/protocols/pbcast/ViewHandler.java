@@ -240,8 +240,6 @@ public class ViewHandler<R> {
 
     /** We're guaranteed that only one thread will be called with this method at any time */
     protected void process(Collection<R> requests) {
-        System.out.printf("**** %s %s [%s]: processing requests: %s\n",
-                          gms.local_addr, gms.getImplementation(), Thread.currentThread(), requests);
         for(;;) {
             while(!requests.isEmpty()) {
                 removeAndProcess(requests); // remove matching requests and process them
